@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LookShift — Live Fashion Impact</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Manrope:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header class="top">
+        <div class="brand">LookShift</div>
+        <p class="tag">Live outfit → healthier eco alternative</p>
+      </header>
+
+      <section id="lobby" class="lobby">
+        <h1>See a better outfit while you stream</h1>
+        <p>
+          Join a room (no account). We snapshot your live look and suggest a healthier,
+          greener alternative on the other side of the screen.
+        </p>
+        <div class="lobby-actions">
+          <button id="createRoomBtn" class="btn primary">Create room</button>
+          <div class="join-row">
+            <input id="roomInput" type="text" placeholder="Room code" />
+            <button id="joinRoomBtn" class="btn">Join</button>
+          </div>
+        </div>
+        <p id="lobbyError" class="error" hidden></p>
+      </section>
+
+      <section id="room" class="room" hidden>
+        <div class="room-bar">
+          <div>
+            <span class="label">Room</span>
+            <strong id="roomIdLabel"></strong>
+          </div>
+          <div class="room-actions">
+            <button id="analyzeBtn" class="btn">Analyze now</button>
+            <button id="leaveBtn" class="btn ghost">Leave</button>
+          </div>
+        </div>
+
+        <div class="split">
+          <article class="pane">
+            <header>
+              <h2>Now</h2>
+              <span id="videoStatus" class="pill">Connecting…</span>
+            </header>
+            <div id="publisher" class="video-stage"></div>
+            <div id="subscriber" class="video-stage remote" hidden></div>
+            <p id="demoVideoNote" class="hint" hidden>
+              Vonage keys not set — using camera preview only (demo mode).
+            </p>
+          </article>
+
+          <article class="pane alt">
+            <header>
+              <h2>Better alternative</h2>
+              <span id="analysisStatus" class="pill muted">Waiting</span>
+            </header>
+            <div id="altVisual" class="alt-visual">
+              <div class="alt-placeholder">Alternative look appears here</div>
+            </div>
+            <div id="altMeta" class="alt-meta"></div>
+          </article>
+        </div>
+
+        <div class="detected-section">
+          <div class="detected-bar">
+            <div>
+              <h3>Detected in Outfit</h3>
+              <div id="detected" class="chips">—</div>
+            </div>
+            <div id="lifecycleBox" class="lifecycle-box" hidden>
+              <span class="lifecycle-label">Lifecycle Hotspot</span>
+              <div id="lifecycleBadge" class="lifecycle-badge"></div>
+              <p id="lifecycleSummary" class="lifecycle-desc"></p>
+            </div>
+          </div>
+        </div>
+
+        <div class="matrix-wrapper">
+          <div class="matrix-header">
+            <div>
+              <h3>Fashion: Health & Environmental Risk Matrix</h3>
+              <p class="matrix-sub">Official evidence benchmarks: OSHA • NIOSH • UNEP • EPA</p>
+            </div>
+          </div>
+          <div class="matrix-columns">
+            <div class="matrix-col">
+              <div class="col-head">
+                <span class="col-icon">👤</span>
+                <h4>Clothing Wearers</h4>
+              </div>
+              <div id="wearers" class="cards">—</div>
+              <div id="health" class="cards" hidden></div>
+            </div>
+            <div class="matrix-col">
+              <div class="col-head">
+                <span class="col-icon">🧵</span>
+                <h4>Makers / Workers</h4>
+              </div>
+              <div id="workers" class="cards">—</div>
+            </div>
+            <div class="matrix-col">
+              <div class="col-head">
+                <span class="col-icon">🌎</span>
+                <h4>Planet</h4>
+              </div>
+              <div id="planet" class="cards">—</div>
+              <div id="environment" class="cards" hidden></div>
+            </div>
+          </div>
+        </div>
+
+        <div id="betterChoicesWrapper" class="better-choices-wrapper" hidden>
+          <h3>Better Choices & Actions</h3>
+          <ul id="betterChoices" class="choices-list"></ul>
+        </div>
+      </section>
+    </div>
+
+    <video id="localPreview" autoplay playsinline muted hidden></video>
+    <canvas id="snapCanvas" hidden></canvas>
+    <script type="module" src="/main.js"></script>
+  </body>
+</html>

@@ -1,0 +1,9 @@
+{
+  "name": "lookshift",
+  "private": true,
+  "scripts": {
+    "dev:api": "npm --prefix services/api run dev",
+    "dev:web": "npm --prefix apps/web run dev",
+    "install:all": "npm --prefix services/api install && npm --prefix apps/web install"
+  }
+}
