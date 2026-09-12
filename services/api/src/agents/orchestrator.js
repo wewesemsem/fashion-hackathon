@@ -129,33 +129,26 @@ export async function runFashionPipeline({ imageBase64, mimeType }) {
     return demoPipeline();
   }
 
-  try {
-    const outfit = await analyzeOutfit({ imageBase64, mimeType });
-    const risks = await assessFashionRisks(outfit);
-    const alternativeOutfit = await proposeAlternative(outfit, risks);
+  const outfit = await analyzeOutfit({ imageBase64, mimeType });
+  const risks = await assessFashionRisks(outfit);
+  const alternativeOutfit = await proposeAlternative(outfit, risks);
 
-    return {
-      detected: {
-        items: outfit.items || [],
-        materialsGuess: outfit.materialsGuess || [],
-        scene: outfit.scene || '',
-        labels: outfit.labels || [],
-        confidence: outfit.confidence ?? null,
-      },
-      overallSeverity: risks.overallSeverity || 'medium',
-      lifecycleFootprint: risks.lifecycleFootprint || null,
-      matrix: risks.matrix || null,
-      health: risks.health || (risks.matrix?.wearers || []),
-      workerHealth: risks.workerHealth || (risks.matrix?.workers || []),
-      environment: risks.environment || (risks.matrix?.planet || []),
-      betterChoices: risks.betterChoices || [],
-      alternativeOutfit,
-      timestamp: new Date().toISOString(),
-    };
-  } catch (err) {
-    console.error('[Gemini Multi-Agent Error]:', err.message || err);
-    const fallback = demoPipeline();
-    fallback.fallbackNotice = `Gemini API blocked or unavailable (${err.message || 'API error'}). Showing demo analysis.`;
-    return fallback;
-  }
+  return {
+    detected: {
+      items: outfit.items || [],
+      materialsGuess: outfit.materialsGuess || [],
+      scene: outfit.scene || '',
+      labels: outfit.labels || [],
+      confidence: outfit.confidence ?? null,
+    },
+    overallSeverity: risks.overallSeverity || 'medium',
+    lifecycleFootprint: risks.lifecycleFootprint || null,
+    matrix: risks.matrix || null,
+    health: risks.health || (risks.matrix?.wearers || []),
+    workerHealth: risks.workerHealth || (risks.matrix?.workers || []),
+    environment: risks.environment || (risks.matrix?.planet || []),
+    betterChoices: risks.betterChoices || [],
+    alternativeOutfit,
+    timestamp: new Date().toISOString(),
+  };
 }

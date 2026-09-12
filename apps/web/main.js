@@ -217,15 +217,8 @@ function stopSnapshotLoop() {
 }
 
 function renderAnalysis(data) {
-  if (data.fallbackNotice) {
-    analysisStatus.textContent = 'Fallback';
-    analysisStatus.className = 'pill warn';
-    analysisStatus.title = data.fallbackNotice;
-  } else {
-    analysisStatus.textContent = data.demo ? 'Demo' : 'Updated';
-    analysisStatus.className = 'pill';
-    analysisStatus.title = '';
-  }
+  analysisStatus.textContent = data.demo ? 'Demo' : 'Updated';
+  analysisStatus.className = 'pill';
 
   const detected = document.getElementById('detected');
   const items = data.detected?.items || [];
