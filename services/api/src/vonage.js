@@ -1,24 +1,56 @@
 import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { Auth } from '@vonage/auth';
 import { Video } from '@vonage/video';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 let videoClient = null;
 
-export function isVonageConfigured() {
-  return Boolean(
-    process.env.VONAGE_APPLICATION_ID &&
-      (process.env.VONAGE_PRIVATE_KEY || process.env.VONAGE_PRIVATE_KEY_PATH)
-  );
+function resolvePrivateKeyPath(keyPath) {
+  if (!keyPath) return null;
+  const candidates = [
+    keyPath,
+    path.resolve(process.cwd(), keyPath),
+    path.resolve(process.cwd(), '..', keyPath),
+    path.resolve(__dirname, '..', keyPath),
+    path.resolve(__dirname, '../../', keyPath),
+    path.resolve(__dirname, '../vonage.key'),
+    path.resolve(__dirname, '../../vonage.key'),
+  ];
+  for (const p of candidates) {
+    try {
+      if (fs.existsSync(p) && fs.statSync(p).isFile()) {
+        return p;
+      }
+    } catch (_) {}
+  }
+  return null;
 }
 
 function getPrivateKey() {
   if (process.env.VONAGE_PRIVATE_KEY) {
     return process.env.VONAGE_PRIVATE_KEY.replace(/\\n/g, '\n');
   }
-  if (process.env.VONAGE_PRIVATE_KEY_PATH) {
-    return fs.readFileSync(process.env.VONAGE_PRIVATE_KEY_PATH, 'utf8');
+  const keyPath = process.env.VONAGE_PRIVATE_KEY_PATH || './vonage.key';
+  const resolved = resolvePrivateKeyPath(keyPath);
+  if (resolved) {
+    try {
+      return fs.readFileSync(resolved, 'utf8');
+    } catch (err) {
+      console.warn(`[Vonage] Failed to read private key at ${resolved}:`, err.message);
+      return null;
+    }
   }
   return null;
+}
+
+export function isVonageConfigured() {
+  if (!process.env.VONAGE_APPLICATION_ID) return false;
+  const key = getPrivateKey();
+  return Boolean(key && key.trim());
 }
 
 function getVideoClient() {

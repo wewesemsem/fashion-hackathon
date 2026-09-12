@@ -143,17 +143,25 @@ async function startCameraPreview() {
   publisherEl.appendChild(localPreview);
 }
 
-function getSnapshotBlob() {
-  return new Promise((resolve, reject) => {
-    let video = localPreview;
-    const otVideo = publisherEl.querySelector('video');
-    if (otVideo) video = otVideo;
-
-    if (!video || video.readyState < 2) {
-      reject(new Error('Camera not ready'));
-      return;
+async function waitForVideoReady(maxWaitMs = 3000) {
+  const start = Date.now();
+  while (Date.now() - start < maxWaitMs) {
+    let video = publisherEl.querySelector('video') || localPreview;
+    if (video && video.readyState >= 2 && (video.videoWidth > 0 || video.readyState >= 3)) {
+      return video;
     }
+    await new Promise((resolve) => setTimeout(resolve, 150));
+  }
+  return null;
+}
 
+async function getSnapshotBlob() {
+  const video = await waitForVideoReady(2500);
+  if (!video) {
+    return null;
+  }
+
+  return new Promise((resolve, reject) => {
     const w = video.videoWidth || 640;
     const h = video.videoHeight || 480;
     snapCanvas.width = w;
@@ -171,17 +179,23 @@ function getSnapshotBlob() {
 async function analyzeFrame() {
   if (!roomId || analyzing) return;
   analyzing = true;
-  analysisStatus.textContent = 'Analyzing…';
-  analysisStatus.className = 'pill warn';
 
   try {
     const blob = await getSnapshotBlob();
+    if (!blob) {
+      // Camera is still initializing, quietly wait for next tick
+      return;
+    }
+
+    analysisStatus.textContent = 'Analyzing…';
+    analysisStatus.className = 'pill warn';
+
     const form = new FormData();
     form.append('frame', blob, 'frame.jpg');
     const result = await api(`/rooms/${roomId}/analyze`, { method: 'POST', body: form });
     renderAnalysis(result);
   } catch (err) {
-    console.error(err);
+    console.warn('Analysis tick failed:', err.message || err);
     analysisStatus.textContent = 'Retry';
     analysisStatus.className = 'pill warn';
   } finally {
@@ -194,7 +208,7 @@ function startSnapshotLoop() {
   snapshotTimer = setInterval(() => {
     analyzeFrame();
   }, 5000);
-  setTimeout(analyzeFrame, 1200);
+  setTimeout(analyzeFrame, 2000);
 }
 
 function stopSnapshotLoop() {
