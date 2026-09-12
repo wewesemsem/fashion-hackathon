@@ -6,3 +6,4 @@ dist/
 *.key
 vonage.key
 .vercel
+.vite/
