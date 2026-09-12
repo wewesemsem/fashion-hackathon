@@ -8,6 +8,20 @@ Live fashion impact coach: watch an outfit on a **live video** call, get continu
 
 ---
 
+## Product UI
+
+Split screen: **Now** (live outfit detection) | **Better alternative** (healthier / greener swap), with detected items and impact rationale.
+
+![LookShift split-screen UI — live detection and alternative outfit](docs/images/ui-split-screen.png)
+
+### Fashion health & environmental risk matrix
+
+Risks are framed across **clothing wearers**, **makers / workers**, and the **planet**, grounded in public benchmarks (OSHA • NIOSH • UNEP • EPA).
+
+![Fashion health and environmental risk matrix](docs/images/risk-matrix.png)
+
+---
+
 ## Architecture (frontend + backend)
 
 ```
