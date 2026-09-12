@@ -3,4 +3,6 @@ dist/
 .env
 .DS_Store
 *.pem
+*.key
+vonage.key
 .vercel
