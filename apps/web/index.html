@@ -22,11 +22,12 @@
       <section id="lobby" class="lobby">
         <h1>See a better outfit while you stream</h1>
         <p>
-          Join a room (no account). We snapshot your live look and suggest a healthier,
-          greener alternative on the other side of the screen.
+          Join a room (no account). We snapshot your live look — or upload a short video —
+          and suggest a healthier, greener alternative on the other side of the screen.
         </p>
         <div class="lobby-actions">
           <button id="createRoomBtn" class="btn primary">Create room</button>
+          <button id="lobbyUploadBtn" class="btn" type="button">Upload video</button>
           <div class="join-row">
             <input id="roomInput" type="text" placeholder="Room code" />
             <button id="joinRoomBtn" class="btn">Join</button>
@@ -42,6 +43,8 @@
             <strong id="roomIdLabel"></strong>
           </div>
           <div class="room-actions">
+            <button id="uploadVideoBtn" class="btn" type="button">Upload video</button>
+            <button id="resumeLiveBtn" class="btn ghost" type="button" hidden>Resume live</button>
             <button id="analyzeBtn" class="btn">Analyze now</button>
             <button id="leaveBtn" class="btn ghost">Leave</button>
           </div>
@@ -55,8 +58,12 @@
             </header>
             <div id="publisher" class="video-stage"></div>
             <div id="subscriber" class="video-stage remote" hidden></div>
+            <video id="uploadedPreview" class="upload-preview" controls playsinline muted hidden></video>
             <p id="demoVideoNote" class="hint" hidden>
               Vonage keys not set — using camera preview only (demo mode).
+            </p>
+            <p id="uploadVideoNote" class="hint" hidden>
+              Video upload mode — live snapshots paused. Frames sampled from your file for analysis.
             </p>
           </article>
 
@@ -129,6 +136,7 @@
 
     <video id="localPreview" autoplay playsinline muted hidden></video>
     <canvas id="snapCanvas" hidden></canvas>
+    <input id="videoFileInput" type="file" accept="video/*" hidden />
     <script type="module" src="/main.js"></script>
   </body>
 </html>

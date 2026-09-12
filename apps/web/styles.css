@@ -149,7 +149,30 @@ input {
 
 .room-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+.upload-preview {
+  display: none;
+  width: 100%;
+  min-height: 280px;
+  max-height: 420px;
+  object-fit: contain;
+  background: #10241d;
+}
+
+.upload-preview.visible {
+  display: block;
+}
+
+.pane.upload-mode .video-stage {
+  display: none;
+}
+
+.pane.upload-mode .upload-preview.visible {
+  display: block;
 }
 
 .split {

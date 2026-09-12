@@ -7,9 +7,18 @@ const roomIdLabel = document.getElementById('roomIdLabel');
 const videoStatus = document.getElementById('videoStatus');
 const analysisStatus = document.getElementById('analysisStatus');
 const demoVideoNote = document.getElementById('demoVideoNote');
+const uploadVideoNote = document.getElementById('uploadVideoNote');
 const publisherEl = document.getElementById('publisher');
 const localPreview = document.getElementById('localPreview');
+const uploadedPreview = document.getElementById('uploadedPreview');
 const snapCanvas = document.getElementById('snapCanvas');
+const videoFileInput = document.getElementById('videoFileInput');
+const uploadVideoBtn = document.getElementById('uploadVideoBtn');
+const resumeLiveBtn = document.getElementById('resumeLiveBtn');
+const nowPane = publisherEl?.closest('.pane');
+const defaultDemoNote =
+  demoVideoNote?.textContent ||
+  'Vonage keys not set — using camera preview only (demo mode).';
 
 let roomId = null;
 let ws = null;
@@ -18,6 +27,9 @@ let publisher = null;
 let previewStream = null;
 let snapshotTimer = null;
 let analyzing = false;
+let uploadMode = false;
+let uploadedObjectUrl = null;
+let pendingLobbyUpload = false;
 let OT = null;
 
 async function api(path, options = {}) {
@@ -71,7 +83,14 @@ async function enterRoom(id) {
 
   connectWs(id);
   await startVideo(tokenPayload);
-  startSnapshotLoop();
+
+  if (pendingLobbyUpload) {
+    pendingLobbyUpload = false;
+    // Defer so the room UI paints before the file picker
+    setTimeout(() => videoFileInput.click(), 50);
+  } else {
+    startSnapshotLoop();
+  }
 }
 
 function connectWs(id) {
@@ -84,7 +103,7 @@ function connectWs(id) {
   ws.onmessage = (event) => {
     const msg = JSON.parse(event.data);
     if (msg.type === 'analyzing') {
-      analysisStatus.textContent = 'Analyzing…';
+      analysisStatus.textContent = msg.source === 'video' ? 'Video analyzing…' : 'Analyzing…';
       analysisStatus.className = 'pill warn';
     }
     if (msg.type === 'analysis') {
@@ -102,9 +121,18 @@ async function startVideo(creds) {
   const isDemo = creds.demo || String(creds.token || '').startsWith('demo-');
 
   if (!hasSdk || isDemo) {
-    await startCameraPreview();
-    videoStatus.textContent = 'Preview';
-    demoVideoNote.hidden = false;
+    try {
+      await startCameraPreview();
+      videoStatus.textContent = 'Preview';
+      demoVideoNote.hidden = false;
+    } catch (err) {
+      console.warn('Camera preview unavailable', err);
+      videoStatus.textContent = pendingLobbyUpload ? 'Upload' : 'No camera';
+      demoVideoNote.hidden = false;
+      demoVideoNote.textContent = pendingLobbyUpload
+        ? 'Camera optional for video upload — pick a file to analyze.'
+        : 'Camera unavailable — use Upload video, or allow camera access and rejoin.';
+    }
     return;
   }
 
@@ -177,7 +205,7 @@ async function getSnapshotBlob() {
 }
 
 async function analyzeFrame() {
-  if (!roomId || analyzing) return;
+  if (!roomId || analyzing || uploadMode) return;
   analyzing = true;
 
   try {
@@ -204,6 +232,7 @@ async function analyzeFrame() {
 }
 
 function startSnapshotLoop() {
+  if (uploadMode) return;
   stopSnapshotLoop();
   snapshotTimer = setInterval(() => {
     analyzeFrame();
@@ -216,8 +245,163 @@ function stopSnapshotLoop() {
   snapshotTimer = null;
 }
 
+function clearUploadedVideo() {
+  if (uploadedObjectUrl) {
+    URL.revokeObjectURL(uploadedObjectUrl);
+    uploadedObjectUrl = null;
+  }
+  uploadedPreview.removeAttribute('src');
+  uploadedPreview.hidden = true;
+  uploadedPreview.classList.remove('visible');
+  uploadedPreview.load();
+  uploadVideoNote.hidden = true;
+  resumeLiveBtn.hidden = true;
+  nowPane?.classList.remove('upload-mode');
+  uploadMode = false;
+  videoFileInput.value = '';
+}
+
+function enterUploadMode(file) {
+  stopSnapshotLoop();
+  clearUploadedVideo();
+  uploadMode = true;
+
+  uploadedObjectUrl = URL.createObjectURL(file);
+  uploadedPreview.src = uploadedObjectUrl;
+  uploadedPreview.hidden = false;
+  uploadedPreview.classList.add('visible');
+  nowPane?.classList.add('upload-mode');
+  uploadVideoNote.hidden = false;
+  resumeLiveBtn.hidden = false;
+  demoVideoNote.hidden = true;
+  videoStatus.textContent = 'Uploaded';
+}
+
+function resumeLiveMode() {
+  clearUploadedVideo();
+  if (previewStream || session) {
+    videoStatus.textContent = publisher ? 'Live' : 'Preview';
+    demoVideoNote.textContent = defaultDemoNote;
+    demoVideoNote.hidden = Boolean(publisher);
+  } else {
+    videoStatus.textContent = 'No camera';
+    demoVideoNote.textContent =
+      'Camera unavailable — use Upload video, or allow camera access and rejoin.';
+    demoVideoNote.hidden = false;
+  }
+  startSnapshotLoop();
+}
+
+/**
+ * Sample a few JPEG stills across the clip so the Outfit Agent sees motion
+ * without uploading the full video blob.
+ */
+async function extractFramesFromVideo(file, { count = 3, quality = 0.72 } = {}) {
+  const url = URL.createObjectURL(file);
+  const video = document.createElement('video');
+  video.preload = 'auto';
+  video.muted = true;
+  video.playsInline = true;
+  video.src = url;
+
+  try {
+    await new Promise((resolve, reject) => {
+      video.onloadedmetadata = () => resolve();
+      video.onerror = () => reject(new Error('Could not read video file'));
+    });
+
+    const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 1;
+    const times =
+      duration < 0.4
+        ? [0]
+        : Array.from({ length: count }, (_, i) => {
+            const t = ((i + 1) / (count + 1)) * duration;
+            return Math.min(Math.max(t, 0), Math.max(duration - 0.05, 0));
+          });
+
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const frames = [];
+
+    for (const time of times) {
+      // eslint-disable-next-line no-await-in-loop
+      await new Promise((resolve, reject) => {
+        const onSeeked = () => {
+          video.removeEventListener('seeked', onSeeked);
+          resolve();
+        };
+        video.addEventListener('seeked', onSeeked);
+        video.onerror = () => reject(new Error('Video seek failed'));
+        try {
+          video.currentTime = time;
+        } catch (err) {
+          reject(err);
+        }
+      });
+
+      const w = video.videoWidth || 640;
+      const h = video.videoHeight || 480;
+      if (!w || !h) continue;
+
+      const maxEdge = 960;
+      const scale = Math.min(1, maxEdge / Math.max(w, h));
+      canvas.width = Math.round(w * scale);
+      canvas.height = Math.round(h * scale);
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      // eslint-disable-next-line no-await-in-loop
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
+      if (blob) frames.push(blob);
+    }
+
+    if (!frames.length) throw new Error('No frames could be extracted from the video');
+    return frames;
+  } finally {
+    URL.revokeObjectURL(url);
+    video.removeAttribute('src');
+    video.load();
+  }
+}
+
+async function analyzeUploadedVideo(file) {
+  if (!roomId || analyzing) return;
+  if (!file || !file.type.startsWith('video/')) {
+    throw new Error('Please choose a video file (mp4, webm, mov, …)');
+  }
+  // Soft guard — client still extracts small JPEGs; huge files just take longer to decode
+  if (file.size > 80 * 1024 * 1024) {
+    throw new Error('Video is too large (max ~80MB). Try a shorter clip.');
+  }
+
+  analyzing = true;
+  enterUploadMode(file);
+  uploadVideoBtn.disabled = true;
+  analysisStatus.textContent = 'Sampling video…';
+  analysisStatus.className = 'pill warn';
+
+  try {
+    const frames = await extractFramesFromVideo(file, { count: 3 });
+    analysisStatus.textContent = 'Video analyzing…';
+
+    const form = new FormData();
+    frames.forEach((blob, i) => form.append('frames', blob, `frame-${i + 1}.jpg`));
+
+    const result = await api(`/rooms/${roomId}/analyze-video`, { method: 'POST', body: form });
+    renderAnalysis(result);
+  } catch (err) {
+    console.warn('Video analysis failed:', err.message || err);
+    analysisStatus.textContent = 'Error';
+    analysisStatus.className = 'pill warn';
+    throw err;
+  } finally {
+    analyzing = false;
+    uploadVideoBtn.disabled = false;
+  }
+}
+
 function renderAnalysis(data) {
-  analysisStatus.textContent = data.demo ? 'Demo' : 'Updated';
+  const fromVideo = data.source === 'video';
+  analysisStatus.textContent = data.demo ? 'Demo' : fromVideo ? 'Video updated' : 'Updated';
   analysisStatus.className = 'pill';
 
   const detected = document.getElementById('detected');
@@ -340,6 +524,7 @@ function escapeHtml(value) {
 
 async function leaveRoom() {
   stopSnapshotLoop();
+  clearUploadedVideo();
   if (ws) ws.close();
   if (session) {
     try {
@@ -365,8 +550,33 @@ document.getElementById('createRoomBtn').addEventListener('click', () => {
 document.getElementById('joinRoomBtn').addEventListener('click', () => {
   joinRoom().catch((err) => showError(err.message));
 });
+document.getElementById('lobbyUploadBtn').addEventListener('click', () => {
+  pendingLobbyUpload = true;
+  createRoom().catch((err) => {
+    pendingLobbyUpload = false;
+    showError(err.message);
+  });
+});
 document.getElementById('analyzeBtn').addEventListener('click', () => {
   analyzeFrame();
+});
+uploadVideoBtn.addEventListener('click', () => {
+  videoFileInput.click();
+});
+resumeLiveBtn.addEventListener('click', () => {
+  resumeLiveMode();
+});
+videoFileInput.addEventListener('change', () => {
+  const file = videoFileInput.files?.[0];
+  if (!file) return;
+  analyzeUploadedVideo(file).catch((err) => {
+    if (lobby.hidden) {
+      analysisStatus.textContent = err.message || 'Error';
+      analysisStatus.className = 'pill warn';
+    } else {
+      showError(err.message);
+    }
+  });
 });
 document.getElementById('leaveBtn').addEventListener('click', () => {
   leaveRoom();

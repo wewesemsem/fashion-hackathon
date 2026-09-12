@@ -16,7 +16,13 @@ export function getModel(model = process.env.GEMINI_MODEL || 'gemini-3.6-flash')
   });
 }
 
-export async function generateJson({ system, user, imageBase64, mimeType = 'image/jpeg' }) {
+export async function generateJson({
+  system,
+  user,
+  imageBase64,
+  mimeType = 'image/jpeg',
+  frames = null,
+}) {
   const model = getModel();
   const parts = [];
 
@@ -24,11 +30,18 @@ export async function generateJson({ system, user, imageBase64, mimeType = 'imag
     parts.push({ text: `${system}\n\nRespond with valid JSON only.` });
   }
 
-  if (imageBase64) {
+  const media = Array.isArray(frames) && frames.length
+    ? frames
+    : imageBase64
+      ? [{ imageBase64, mimeType }]
+      : [];
+
+  for (const frame of media) {
+    if (!frame?.imageBase64) continue;
     parts.push({
       inlineData: {
-        data: imageBase64,
-        mimeType,
+        data: frame.imageBase64,
+        mimeType: frame.mimeType || 'image/jpeg',
       },
     });
   }

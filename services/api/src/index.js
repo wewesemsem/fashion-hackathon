@@ -13,6 +13,11 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 8 * 1024 * 1024 },
 });
+/** Multi-frame uploads from client-side video sampling (JPEG stills). */
+const uploadVideoFrames = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 6 * 1024 * 1024, files: 6 },
+}).array('frames', 6);
 
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
@@ -115,9 +120,9 @@ app.post('/rooms/:id/analyze', upload.single('frame'), async (req, res) => {
       return res.status(400).json({ error: 'Missing frame image' });
     }
 
-    broadcast(roomId, { type: 'analyzing', timestamp: new Date().toISOString() });
+    broadcast(roomId, { type: 'analyzing', source: 'live', timestamp: new Date().toISOString() });
 
-    const result = await runFashionPipeline({ imageBase64, mimeType });
+    const result = await runFashionPipeline({ imageBase64, mimeType, source: 'live' });
     const payload = { type: 'analysis', ...result };
     broadcast(roomId, payload);
     res.json(payload);
@@ -127,6 +132,74 @@ app.post('/rooms/:id/analyze', upload.single('frame'), async (req, res) => {
     broadcast(req.params.id, { type: 'error', message });
     res.status(500).json({ error: 'Analysis failed', detail: message });
   }
+});
+
+/**
+ * Analyze an uploaded video via sampled JPEG frames (client extracts stills).
+ * Reuses the same MAS pipeline + WS contract as live snapshots.
+ */
+app.post('/rooms/:id/analyze-video', (req, res) => {
+  uploadVideoFrames(req, res, async (err) => {
+    if (err) {
+      console.error('video frame upload failed', err);
+      return res.status(400).json({
+        error: 'Invalid video frames upload',
+        detail: String(err.message || err),
+      });
+    }
+
+    try {
+      const roomId = req.params.id;
+      const room = rooms.get(roomId);
+      if (!room) return res.status(404).json({ error: 'Room not found' });
+
+      const files = Array.isArray(req.files) ? req.files : [];
+      let frames = files
+        .filter((f) => f?.buffer?.length)
+        .map((f) => ({
+          imageBase64: f.buffer.toString('base64'),
+          mimeType: f.mimetype || 'image/jpeg',
+        }));
+
+      if (!frames.length && Array.isArray(req.body?.frames)) {
+        frames = req.body.frames
+          .map((f) => ({
+            imageBase64: String(f.imageBase64 || '').replace(/^data:image\/\w+;base64,/, ''),
+            mimeType: f.mimeType || 'image/jpeg',
+          }))
+          .filter((f) => f.imageBase64);
+      }
+
+      if (!frames.length) {
+        return res.status(400).json({ error: 'Missing video frames (upload field: frames)' });
+      }
+
+      // Cap to keep Gemini latency reasonable for demos
+      frames = frames.slice(0, 4);
+
+      broadcast(roomId, {
+        type: 'analyzing',
+        source: 'video',
+        frameCount: frames.length,
+        timestamp: new Date().toISOString(),
+      });
+
+      const result = await runFashionPipeline({
+        imageBase64: frames[0].imageBase64,
+        mimeType: frames[0].mimeType,
+        frames,
+        source: 'video',
+      });
+      const payload = { type: 'analysis', ...result };
+      broadcast(roomId, payload);
+      res.json(payload);
+    } catch (analyzeErr) {
+      console.error('analyze-video failed', analyzeErr);
+      const message = String(analyzeErr.message || analyzeErr);
+      broadcast(req.params.id, { type: 'error', message });
+      res.status(500).json({ error: 'Video analysis failed', detail: message });
+    }
+  });
 });
 
 const server = http.createServer(app);

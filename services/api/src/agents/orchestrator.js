@@ -124,12 +124,12 @@ function demoPipeline() {
   };
 }
 
-export async function runFashionPipeline({ imageBase64, mimeType }) {
+export async function runFashionPipeline({ imageBase64, mimeType, frames = null, source = 'live' }) {
   if (!process.env.GEMINI_API_KEY) {
-    return demoPipeline();
+    return { ...demoPipeline(), source };
   }
 
-  const outfit = await analyzeOutfit({ imageBase64, mimeType });
+  const outfit = await analyzeOutfit({ imageBase64, mimeType, frames });
   const risks = await assessFashionRisks(outfit);
   const alternativeOutfit = await proposeAlternative(outfit, risks);
 
@@ -149,6 +149,7 @@ export async function runFashionPipeline({ imageBase64, mimeType }) {
     environment: risks.environment || (risks.matrix?.planet || []),
     betterChoices: risks.betterChoices || [],
     alternativeOutfit,
+    source,
     timestamp: new Date().toISOString(),
   };
 }
