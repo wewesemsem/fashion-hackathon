@@ -6,7 +6,7 @@ export function getGenAI() {
   return new GoogleGenerativeAI(key);
 }
 
-export function getModel(model = process.env.GEMINI_MODEL || 'gemini-2.0-flash') {
+export function getModel(model = process.env.GEMINI_MODEL || 'gemini-3.6-flash') {
   return getGenAI().getGenerativeModel({
     model,
     generationConfig: {
