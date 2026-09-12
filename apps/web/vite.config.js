@@ -4,10 +4,10 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
+      // Keep /api prefix so it matches production (Express mounts routes at /api).
       '/api': {
         target: 'http://localhost:8787',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, ''),
       },
       '/ws': {
         target: 'ws://localhost:8787',

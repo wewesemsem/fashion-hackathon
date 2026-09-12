@@ -2,11 +2,17 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import http from 'http';
+import path from 'path';
+import fs from 'fs';
 import multer from 'multer';
+import { fileURLToPath } from 'url';
 import { WebSocketServer } from 'ws';
 import { nanoid } from 'nanoid';
 import { createVonageSession, createVonageToken, isVonageConfigured } from './vonage.js';
 import { runFashionPipeline } from './agents/orchestrator.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const upload = multer({
@@ -41,7 +47,9 @@ function broadcast(roomId, payload) {
   }
 }
 
-app.get('/health', (_req, res) => {
+const api = express.Router();
+
+api.get('/health', (_req, res) => {
   res.json({
     ok: true,
     vonage: isVonageConfigured(),
@@ -49,7 +57,7 @@ app.get('/health', (_req, res) => {
   });
 });
 
-app.post('/rooms', async (_req, res) => {
+api.post('/rooms', async (_req, res) => {
   try {
     const roomId = nanoid(10);
     let sessionId = null;
@@ -68,7 +76,7 @@ app.post('/rooms', async (_req, res) => {
   }
 });
 
-app.post('/rooms/:id/token', async (req, res) => {
+api.post('/rooms/:id/token', async (req, res) => {
   try {
     const room = rooms.get(req.params.id);
     if (!room) return res.status(404).json({ error: 'Room not found' });
@@ -101,7 +109,7 @@ app.post('/rooms/:id/token', async (req, res) => {
   }
 });
 
-app.post('/rooms/:id/analyze', upload.single('frame'), async (req, res) => {
+api.post('/rooms/:id/analyze', upload.single('frame'), async (req, res) => {
   try {
     const roomId = req.params.id;
     const room = rooms.get(roomId);
@@ -138,7 +146,7 @@ app.post('/rooms/:id/analyze', upload.single('frame'), async (req, res) => {
  * Analyze an uploaded video via sampled JPEG frames (client extracts stills).
  * Reuses the same MAS pipeline + WS contract as live snapshots.
  */
-app.post('/rooms/:id/analyze-video', (req, res) => {
+api.post('/rooms/:id/analyze-video', (req, res) => {
   uploadVideoFrames(req, res, async (err) => {
     if (err) {
       console.error('video frame upload failed', err);
@@ -201,6 +209,31 @@ app.post('/rooms/:id/analyze-video', (req, res) => {
     }
   });
 });
+
+// Same-origin prod uses /api/*; local Vite can proxy with or without strip.
+app.use('/api', api);
+app.use(api);
+
+const webDistCandidates = [
+  path.resolve(__dirname, '../../../apps/web/dist'),
+  path.resolve(process.cwd(), 'apps/web/dist'),
+  path.resolve(process.cwd(), '../web/dist'),
+  path.resolve(process.cwd(), '../../apps/web/dist'),
+];
+const webDist = webDistCandidates.find((p) => fs.existsSync(path.join(p, 'index.html')));
+
+if (webDist) {
+  app.use(express.static(webDist));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api') || req.path === '/ws' || req.path.startsWith('/ws')) {
+      return next();
+    }
+    res.sendFile(path.join(webDist, 'index.html'));
+  });
+  console.log(`Serving web UI from ${webDist}`);
+} else {
+  console.log('No web dist found — API-only mode (run apps/web Vite for local UI)');
+}
 
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server, path: '/ws' });

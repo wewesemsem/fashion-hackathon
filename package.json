@@ -4,6 +4,11 @@
   "scripts": {
     "dev:api": "npm --prefix services/api run dev",
     "dev:web": "npm --prefix apps/web run dev",
-    "install:all": "npm --prefix services/api install && npm --prefix apps/web install"
+    "install:all": "npm --prefix services/api install && npm --prefix apps/web install",
+    "build": "npm --prefix apps/web install && npm --prefix apps/web run build && npm --prefix services/api install",
+    "start": "npm --prefix services/api start"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }
